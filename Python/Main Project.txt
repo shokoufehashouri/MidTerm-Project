@@ -1,0 +1,292 @@
+import sqlite3
+import tkinter
+import re
+
+#---------function-------
+def adminPanel():
+    def refreshList():
+        lstbox.delete(0, 'end')
+        for product in getAllProducts():
+            text = f'ID:{product[0]}, Name:{product[1]}, Number:{product[2]}, Price:{product[3]}'
+            lstbox.insert('end', text)
+
+    def addProduct():
+        name = txtName.get().strip()
+        num = txtNum.get().strip()
+        price = txtPrice.get().strip()
+        if not name or not num.isdigit() or not price.isdigit():
+            lblMsg.configure(text="invalid information!", fg="red")
+            return
+        try:
+            cnt.execute("INSERT INTO products(pname, numbers, price) VALUES (?, ?, ?)", (name, int(num), int(price)))
+            cnt.commit()
+            lblMsg.configure(text="product added", fg="green")
+            refreshList()
+        except Exception as e:
+            lblMsg.configure(text=f"error: {e}", fg="red")
+
+    def deleteProduct():
+        pid = txtId.get().strip()
+        if not pid.isdigit():
+            lblMsg.configure(text="invalid ID", fg="red")
+            return
+        cnt.execute("DELETE FROM products WHERE id=?", (int(pid),))
+        cnt.commit()
+        lblMsg.configure(text="product removed", fg="green")
+        refreshList()
+
+    def updateStock():
+        pid = txtId.get().strip()
+        new_num = txtNewNum.get().strip()
+        if not pid.isdigit() or not new_num.isdigit():
+            lblMsg.configure(text="invalid input", fg="red")
+            return
+        cnt.execute("UPDATE products SET numbers=? WHERE id=?", (int(new_num), int(pid)))
+        cnt.commit()
+        lblMsg.configure(text="inventory updated", fg="green")
+        refreshList()
+
+    winAdmin = tkinter.Toplevel(win)
+    winAdmin.title("Admin Panel")
+    winAdmin.geometry("400x500")
+
+    lstbox = tkinter.Listbox(winAdmin, width=50)
+    lstbox.pack(pady=5)
+
+    refreshList()
+
+    tkinter.Label(winAdmin, text="Product ID:").pack()
+    txtId = tkinter.Entry(winAdmin)
+    txtId.pack()
+
+    tkinter.Label(winAdmin, text="Product Name:").pack()
+    txtName = tkinter.Entry(winAdmin)
+    txtName.pack()
+
+    tkinter.Label(winAdmin, text="Product Number:").pack()
+    txtNum = tkinter.Entry(winAdmin)
+    txtNum.pack()
+
+    tkinter.Label(winAdmin, text="Product Price:").pack()
+    txtPrice = tkinter.Entry(winAdmin)
+    txtPrice.pack()
+
+    tkinter.Label(winAdmin, text="New Value For Inventory").pack()
+    txtNewNum = tkinter.Entry(winAdmin)
+    txtNewNum.pack()
+
+    lblMsg = tkinter.Label(winAdmin, text="")
+    lblMsg.pack()
+
+    tkinter.Button(winAdmin, text="add product", command=addProduct).pack(pady=2)
+    tkinter.Button(winAdmin, text="delete product", command=deleteProduct).pack(pady=2)
+    tkinter.Button(winAdmin, text="inventory change", command=updateStock).pack(pady=2)
+
+def getAllProducts():
+    sql = 'SELECT id, pname, numbers, price FROM products'
+    result = cnt.execute(sql)
+    data = result.fetchall()
+    return data
+
+def shop():
+    def buy():
+        pid = txtid.get().strip()
+        pcount = txtnum.get().strip()
+
+        if not pid.isdigit() or not pcount.isdigit():
+            lblmsg3.configure(text="it should be number!", fg="red")
+            return
+
+        pid = int(pid)
+        pcount = int(pcount)
+
+        if pcount <= 0:
+            lblmsg3.configure(text="number should be more than 0!", fg="red")
+            return
+
+        sql = "SELECT * FROM products WHERE id = ?"
+        result = cnt.execute(sql, (pid,))
+        product = result.fetchone()
+
+        if not product:
+            lblmsg3.configure(text="not found!", fg="red")
+            return
+
+        if product[2] < pcount:
+            lblmsg3.configure(text="not enough inventory", fg="red")
+            return
+
+        try:
+            sql = "INSERT INTO cart(product_id, count, username) VALUES (?, ?, ?)"
+            cnt.execute(sql, (pid, pcount, txtUser.get()))
+
+            sql = "UPDATE products SET numbers = numbers - ? WHERE id = ?"
+            cnt.execute(sql, (pcount, pid))
+
+            cnt.commit()
+            lblmsg3.configure(text="completed successfully!", fg="green")
+
+            lstbox.delete(0, 'end')
+            for product in getAllProducts():
+                text = f'ID:{product[0]}, Name:{product[1]}, Number:{product[2]}, Price:{product[3]}'
+                lstbox.insert('end', text)
+
+        except Exception as e:
+            lblmsg3.configure(text=f"error:{str(e)}", fg="red")
+
+    winShop = tkinter.Toplevel(win)
+    winShop.title('Shop Panel')
+    winShop.geometry('350x400')
+
+    lstbox = tkinter.Listbox(winShop, width=50)
+    lstbox.pack(pady=5)
+
+    products = getAllProducts()
+    for product in products:
+        text = f'ID:{product[0]}, Name:{product[1]}, Number:{product[2]}, Price:{product[3]}'
+        lstbox.insert('end', text)
+
+    lblid = tkinter.Label(winShop, text='Product id:')
+    lblid.pack()
+    txtid = tkinter.Entry(winShop)
+    txtid.pack()
+
+    lblnum = tkinter.Label(winShop, text='Product Numbers:')
+    lblnum.pack()
+    txtnum = tkinter.Entry(winShop)
+    txtnum.pack()
+
+    lblmsg3 = tkinter.Label(winShop, text='')
+    lblmsg3.pack()
+
+    btnBuy = tkinter.Button(winShop, text='BUY!', width=20, command=buy)
+    btnBuy.pack()
+
+    winShop.mainloop()
+
+def login():
+    user = txtUser.get()
+    pas = txtPass.get()
+    sql = f'''SELECT * FROM users WHERE username="{user}" AND password="{pas}" '''
+    result = cnt.execute(sql)
+    data = result.fetchall()
+    if len(data) < 1:
+        lblMsg.configure(text="Wrong username or password!", fg="red")
+    else:
+        lblMsg.configure(text="Welcome to your account!", fg="green")
+        txtUser.delete(0, "end")
+        txtPass.delete(0, "end")
+        btnLogin.configure(state="disabled")
+        btnShop.configure(state="active")
+    if user == "admin":
+        btnAdmin.configure(state="active")
+
+def signup():
+    def saveSignup(user, pas, addr):
+        sql = f'''INSERT INTO users(username,password,address,grade)
+                VALUES ("{user}","{pas}","{addr}",0)
+            '''
+        try:
+            cnt.execute(sql)
+            cnt.commit()
+            return True
+        except:
+            return False
+
+    def submitVal(user, pas, cpas):
+        if user == '' or pas == '' or cpas == '':
+            return False, 'empty fields error!'
+        if pas != cpas:
+            return False, "password and confirm mismatch!"
+        sql = f'SELECT * from users WHERE username="{user}" '
+        result = cnt.execute(sql)
+        data = result.fetchall()
+        if len(data) > 0:
+            return False, "username already exist!"
+        pattern = r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$"
+        if not re.match(pattern, pas):
+            return False, "invalid password!! "
+        return True, ''
+
+    def submit():
+        user = txtUser.get()
+        pas = txtPass.get()
+        cpas = txtCpass.get()
+        addr = txtAddr.get()
+        result, msg = submitVal(user, pas, cpas)
+        if not result:
+            lblMsg.configure(text=msg, fg='red')
+            return
+        result = saveSignup(user, pas, addr)
+        if not result:
+            lblMsg.configure(text='something went wrong while connecting database!', fg='red')
+        else:
+            lblMsg.configure(text='signup done successfully!', fg='green')
+            txtUser.delete(0, 'end')
+            txtPass.delete(0, 'end')
+            txtCpass.delete(0, 'end')
+            txtAddr.delete(0, 'end')
+
+    winSignup = tkinter.Toplevel(win)
+    winSignup.title("Signup")
+    winSignup.geometry("300x300")
+
+    lblUser = tkinter.Label(winSignup, text="Username: ")
+    lblUser.pack()
+    txtUser = tkinter.Entry(winSignup, width=18)
+    txtUser.pack()
+
+    lblPass = tkinter.Label(winSignup, text="Password: ")
+    lblPass.pack()
+    txtPass = tkinter.Entry(winSignup, width=18)
+    txtPass.pack()
+
+    lblPasscon = tkinter.Label(winSignup, text="Password Confirm: ")
+    lblPasscon.pack()
+    txtCpass = tkinter.Entry(winSignup, width=18)
+    txtCpass.pack()
+
+    lblAddr = tkinter.Label(winSignup, text="Address: ")
+    lblAddr.pack()
+    txtAddr = tkinter.Entry(winSignup, width=18)
+    txtAddr.pack()
+
+    lblMsg = tkinter.Label(winSignup, text="")
+    lblMsg.pack()
+
+    btnSubmit = tkinter.Button(winSignup, text="Submit!", width=18, command=submit)
+    btnSubmit.pack()
+
+#----------------main---------
+
+cnt = sqlite3.connect("myshop.db")
+win = tkinter.Tk()
+win.title('Shop Project')
+win.geometry('300x300')
+
+lblUser = tkinter.Label(win, text="Username: ")
+lblUser.pack()
+txtUser = tkinter.Entry(win, width=18)
+txtUser.pack()
+
+lblPass = tkinter.Label(win, text="Password: ")
+lblPass.pack()
+txtPass = tkinter.Entry(win, width=18)
+txtPass.pack()
+
+lblMsg = tkinter.Label(win, text=" ")
+lblMsg.pack()
+
+btnLogin = tkinter.Button(win, text="Login", width=18, command=login)
+btnLogin.pack()
+
+btnSignup = tkinter.Button(win, text="signup", width=18, command=signup)
+btnSignup.pack()
+
+btnShop = tkinter.Button(win, text="shop now", width=18, state="disabled", command=shop)
+btnShop.pack()
+
+btnAdmin = tkinter.Button(win, text="Admin Panel", width=18, state="disabled", command=adminPanel)
+btnAdmin.pack()
+
+win.mainloop()
