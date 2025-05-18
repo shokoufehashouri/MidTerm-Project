@@ -1,0 +1,11 @@
+#------------------CREATE TABLE cart-----------------------
+sql='''
+CREATE TABLE cart (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER,
+    count INTEGER,
+    username TEXT
+)
+'''
+cnt.execute(sql)
+cnt.commit()
